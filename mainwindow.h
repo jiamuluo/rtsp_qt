@@ -24,11 +24,15 @@ public slots:
     void showFrame(QImage *);
     void getFrameSize(QSize size);
     void getTimerOut(void);
-private slots:
-    void on_pushButtonStart_released();
+
 protected:
     void paintEvent(QPaintEvent *event);
     bool eventFilter(QObject *watched, QEvent *event);
+private slots:
+    void on_pushButtonStart_toggled(bool checked);
+private:
+    bool startVideo(void);
+    bool stopVideo(void);
 private:
     VideoRtspClient *videoRtsp;
     QList<QImage *> frames;

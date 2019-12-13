@@ -3,6 +3,7 @@
 #include <QPainter>
 #include <QDebug>
 #include <QPixmap>
+#include <QMessageBox>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -13,21 +14,8 @@ MainWindow::MainWindow(QWidget *parent) :
     frameCounts = 0;
     ui->widgetShow->installEventFilter(this);
 
-    videoRtsp = new VideoRtspClient("rtsp://192.168.2.53/0");
-    if(videoRtsp->isValid())
-    {
-        connect(videoRtsp,&VideoRtspClient::VideoGetImage,this,&MainWindow::showFrame);
-        connect(videoRtsp,&VideoRtspClient::VideoGetSize,this,&MainWindow::getFrameSize);
-        videoRtsp->start();
-    }
     connect(&frameTimer,&QTimer::timeout,this,&MainWindow::getTimerOut);
     frameTimer.start(1000);
-    //videoPlayer = new QMediaPlayer(this);
-//    videoWidget = new QVideoWidget(this);
-//    this->setCentralWidget(videoWidget);
-//    videoPlayer->setVideoOutput(videoWidget);
-//    videoPlayer->setMedia(QUrl("rtsp://192.168.2.53/0"));
-//    videoPlayer->play();
 }
 
 MainWindow::~MainWindow()
@@ -69,8 +57,10 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
     if(watched == ui->widgetShow)
     {
 
-        if(event->type() != QEvent::Paint)
+         if(event->type() != QEvent::Paint)
             return false;
+         if(frames.size() == 0)
+              return false;
 
          QImage  *first = frames.takeAt(0);
          QWidget *video          = static_cast< QWidget*>(watched);
@@ -94,13 +84,64 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 #endif
 }
 
-void MainWindow::on_pushButtonStart_released()
-{
-    qDebug() << ui->urlAddr->text();
-
-}
-
 void MainWindow::paintEvent(QPaintEvent *event)
 {
 
+}
+
+void MainWindow::on_pushButtonStart_toggled(bool checked)
+{
+    if(checked)
+    {
+        if(ui->urlAddr->text().isEmpty())
+        {
+            QMessageBox::warning(this,"警告","URL为空");
+            ui->pushButtonStart->setChecked(false);
+            return;
+        }
+        if(startVideo() == false)
+        {
+            QMessageBox::warning(this,"警告","打开失败");
+            ui->pushButtonStart->setChecked(false);
+            return;
+        }
+        ui->pushButtonStart->setText(tr("停止"));
+        ui->urlAddr->setEnabled(false);
+    }
+    else
+    {
+        stopVideo();
+        ui->pushButtonStart->setText(tr("开始"));
+        ui->urlAddr->setEnabled(true);
+        ui->urlAddr->clear();
+    }
+}
+
+bool MainWindow::startVideo()
+{
+
+    videoRtsp = new VideoRtspClient(ui->urlAddr->text());
+    if(!videoRtsp->isValid())
+    {
+        delete videoRtsp;
+        videoRtsp = nullptr;
+        return false;
+    }
+
+    connect(videoRtsp,&VideoRtspClient::VideoGetImage,this,&MainWindow::showFrame);
+    connect(videoRtsp,&VideoRtspClient::VideoGetSize,this,&MainWindow::getFrameSize);
+    videoRtsp->start();
+    return true;
+}
+
+bool MainWindow::stopVideo()
+{
+    if(!videoRtsp)
+        return true;
+    disconnect(videoRtsp,&VideoRtspClient::VideoGetImage,this,&MainWindow::showFrame);
+    disconnect(videoRtsp,&VideoRtspClient::VideoGetSize,this,&MainWindow::getFrameSize);
+    connect(videoRtsp,&VideoRtspClient::finished,videoRtsp,&VideoRtspClient::deleteLater);
+    videoRtsp->quit();
+
+    return true;
 }
